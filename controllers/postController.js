@@ -198,7 +198,7 @@ export const addComment = async (req, res) => {
 
     let isToxic = false;
     try {
-      const response = await fetch("http://127.0.0.1:5002/predict", {
+      const response = await fetch("https://postify-backend-1.onrender.com/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
