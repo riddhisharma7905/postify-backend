@@ -26,6 +26,11 @@ app.use("/api/posts", postRoutes);
 app.use("/api/posts", commentRoutes);
 app.use("/api/posts", recommendRoutes);
 
+// Catch-all for undefined routes - returns JSON instead of HTML
+app.use((req, res) => {
+  res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
+
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,

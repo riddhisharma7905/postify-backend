@@ -13,7 +13,11 @@ export const recommendPosts = async (req, res) => {
     const current = await Post.findById(req.params.id).populate("author", "name email");
     if (!current) return res.status(404).json({ message: "Post not found" });
 
-    const all = await Post.find({ _id: { $ne: current._id } })
+    const now = new Date();
+    const all = await Post.find({ 
+      _id: { $ne: current._id },
+      $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }]
+    })
       .populate("author", "name email")
       .select("title content tags views author");
 
@@ -81,7 +85,10 @@ export const recommendPosts = async (req, res) => {
 
 export const getPosts = async (req, res) => {
   try {
-    const posts = await Post.find()
+    const now = new Date();
+    const posts = await Post.find({
+      $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }],
+    })
       .populate("author", "name email")
       .sort({ createdAt: -1 });
     res.json(posts);
@@ -99,8 +106,14 @@ export const getPost = async (req, res) => {
 
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    post.views = (post.views || 0) + 1;
-    await post.save();
+    const now = new Date();
+    if (post.scheduledAt && post.scheduledAt > now) {
+      // Check if it's the author
+      const userId = req.headers['x-user-id']; // We'll pass this or use auth middleware
+      if (post.author._id.toString() !== userId) {
+         return res.status(403).json({ message: "This post is scheduled for later." });
+      }
+    }
 
     res.json(post);
   } catch (err) {
@@ -108,19 +121,48 @@ export const getPost = async (req, res) => {
   }
 };
 
+export const incrementViewCount = async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    // Simple view counting
+    post.views = (post.views || 0) + 1;
+    await post.save();
+
+    res.json({ views: post.views });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 export const createPost = async (req, res) => {
   try {
-    const { title, content, tags } = req.body;
+    const { title, content, tags, scheduledAt } = req.body;
     if (!title || !content)
       return res.status(400).json({ message: "Title and content are required" });
-    const formattedTags = Array.isArray(tags)
-      ? tags.map(t => t.trim().replace(/\s+/g, "").toLowerCase())
-      : [];
+
+    let scheduledDate = null;
+    if (scheduledAt) {
+      scheduledDate = new Date(scheduledAt);
+      const now = new Date();
+      const maxDate = new Date();
+      maxDate.setDate(now.getDate() + 3);
+
+      if (scheduledDate < now) {
+        return res.status(400).json({ message: "Scheduled date cannot be in the past" });
+      }
+      if (scheduledDate > maxDate) {
+        return res.status(400).json({ message: "You can only schedule posts up to 3 days in advance" });
+      }
+    }
+
     const post = new Post({
       title,
       content,
-      tags,
+      tags: Array.isArray(tags) ? tags : [],
       author: req.user._id,
+      scheduledAt: scheduledDate,
     });
 
     await post.save();
@@ -262,14 +304,22 @@ export const searchPosts = async (req, res) => {
     if (!query) return res.json([]);
     const normalized = query.replace(/\s+/g, "").toLowerCase();
 
+    const now = new Date();
     const posts = await Post.find({
-      $or: [
-        { title: { $regex: query, $options: "i" } },
-        { content: { $regex: query, $options: "i" } },
+      $and: [
         {
-          tags: {
-            $elemMatch: { $regex: new RegExp(normalized, "i") },
-          },
+          $or: [
+            { title: { $regex: query, $options: "i" } },
+            { content: { $regex: query, $options: "i" } },
+            {
+              tags: {
+                $elemMatch: { $regex: new RegExp(normalized, "i") },
+              },
+            },
+          ],
+        },
+        {
+          $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }],
         },
       ],
     })
@@ -286,7 +336,10 @@ export const searchPosts = async (req, res) => {
 
 export const getExplorePosts = async (req, res) => {
   try {
-    const posts = await Post.find()
+    const now = new Date();
+    const posts = await Post.find({
+      $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }],
+    })
       .populate("author", "name email")
       .sort({ views: -1, createdAt: -1 })
       .limit(6);

@@ -12,6 +12,7 @@ import {
   recommendPosts,
   getExplorePosts,
   searchPosts,
+  incrementViewCount,
 } from "../controllers/postController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -24,7 +25,20 @@ router.get("/user/me", authMiddleware, getMyPosts);
 router.get("/author/:id", async (req, res) => {
   try {
     const { Post } = await import("../models/Post.js");
-    const posts = await Post.find({ author: req.params.id })
+    const now = new Date();
+    
+    // Always filter out scheduled posts for the public author profile view.
+    // Scheduled posts should only be visible to authors via their Dashboard / Scheduling section.
+    const filter = { 
+      author: req.params.id,
+      $or: [
+        { scheduledAt: { $exists: false } }, 
+        { scheduledAt: null }, 
+        { scheduledAt: { $lte: now } }
+      ]
+    };
+
+    const posts = await Post.find(filter)
       .populate("author", "name email")
       .sort({ createdAt: -1 });
 
@@ -40,6 +54,7 @@ router.get("/author/:id", async (req, res) => {
 });
 
 router.get("/:id/recommendations", recommendPosts);
+router.post("/:id/view", incrementViewCount);
 router.get("/:id", getPost);
 
 router.post("/", authMiddleware, createPost);

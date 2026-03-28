@@ -3,7 +3,8 @@ import {
   getUserDashboard, 
   getUserById, 
   followUser,
-  checkFollowStatus 
+  checkFollowStatus,
+  updateUserProfile
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -13,5 +14,6 @@ router.get("/dashboard", authMiddleware, getUserDashboard);
 router.get("/:id", getUserById);
 router.post("/:id/follow", authMiddleware, followUser);
 router.get("/:id/follow-status", authMiddleware, checkFollowStatus); // ✅ NEW
+router.put("/profile", authMiddleware, updateUserProfile);
 
 export default router;

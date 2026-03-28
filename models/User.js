@@ -20,6 +20,10 @@ const userSchema = new mongoose.Schema(
     },
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", default: [] }],
+    birthdate: { type: Date, default: null },
+    sex: { type: String, default: "" },
+    bio: { type: String, default: "", maxLength: 300 },
+    phoneNumber: { type: String, default: "" },
   },
   { timestamps: true } 
 );

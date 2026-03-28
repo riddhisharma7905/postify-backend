@@ -9,6 +9,7 @@ const postSchema = new mongoose.Schema({
   comments: { type: [commentSchema], default: [] },
   views: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now },
+  scheduledAt: { type: Date, default: null },
 });
 
 export const Post = mongoose.model("Post", postSchema);
