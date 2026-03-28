@@ -24,6 +24,7 @@ const userSchema = new mongoose.Schema(
     sex: { type: String, default: "" },
     bio: { type: String, default: "", maxLength: 300 },
     phoneNumber: { type: String, default: "" },
+    pinnedPostId: { type: mongoose.Schema.Types.ObjectId, ref: "Post", default: null },
   },
   { timestamps: true } 
 );

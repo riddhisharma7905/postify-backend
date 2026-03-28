@@ -4,7 +4,8 @@ import {
   getUserById, 
   followUser,
   checkFollowStatus,
-  updateUserProfile
+  updateUserProfile,
+  pinPost
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -13,7 +14,8 @@ const router = express.Router();
 router.get("/dashboard", authMiddleware, getUserDashboard);
 router.get("/:id", getUserById);
 router.post("/:id/follow", authMiddleware, followUser);
-router.get("/:id/follow-status", authMiddleware, checkFollowStatus); // ✅ NEW
+router.get("/:id/follow-status", authMiddleware, checkFollowStatus);
 router.put("/profile", authMiddleware, updateUserProfile);
+router.post("/pin/:postId", authMiddleware, pinPost);
 
 export default router;

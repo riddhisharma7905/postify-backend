@@ -102,7 +102,8 @@ export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate("author", "name email")
-      .populate("comments.user", "name email");
+      .populate("comments.user", "name email _id")
+      .populate("comments.replies.user", "name email _id");
 
     if (!post) return res.status(404).json({ message: "Post not found" });
 
@@ -307,21 +308,31 @@ export const searchPosts = async (req, res) => {
   try {
     const { query, category } = req.query;
     if (!query && !category) return res.json([]);
-    
+
     const now = new Date();
     const filters = [
       { $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }] }
     ];
 
+    // Strict tag-only search: normalize query and compare against lowercased tags
     if (query) {
-      const normalized = query.replace(/\s+/g, "").toLowerCase();
+      const cleanQuery = query.trim().replace(/^#/, "").toLowerCase();
+      // Use aggregation-style approach: match where any tag lowercased equals the query
       filters.push({
-        $or: [
-          { title: { $regex: query, $options: "i" } },
-          { content: { $regex: query, $options: "i" } },
-          { tags: { $elemMatch: { $regex: new RegExp(normalized, "i") } } },
-          { category: { $regex: query, $options: "i" } },
-        ],
+        $expr: {
+          $gt: [
+            {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ["$tags", []] },
+                  as: "tag",
+                  cond: { $eq: [{ $toLower: "$$tag" }, cleanQuery] }
+                }
+              }
+            },
+            0
+          ]
+        }
       });
     }
 
@@ -374,5 +385,103 @@ export const getMyPosts = async (req, res) => {
     res.json(posts);
   } catch (err) {
     res.status(500).json({ message: "Error fetching user's posts" });
+  }
+};
+
+export const getPostsLikedByUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const now = new Date();
+    const posts = await Post.find({
+      likes: userId,
+      $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }]
+    })
+      .populate("author", "name email")
+      .sort({ createdAt: -1 });
+    res.json(posts);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching liked posts" });
+  }
+};
+
+// ────────────────────────────────────────────────────────────────
+// Comment Replies
+// ────────────────────────────────────────────────────────────────
+
+export const addReply = async (req, res) => {
+  try {
+    const { id: postId, commentId } = req.params;
+    const { text } = req.body;
+    const userId = req.user._id;
+
+    if (!text?.trim()) return res.status(400).json({ message: "Reply text required" });
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    const comment = post.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    // Optional toxicity check (same as comment)
+    let isToxic = false;
+    try {
+      const response = await fetch("https://postify-backend-1.onrender.com/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: text }),
+      });
+      const data = await response.json();
+      isToxic = data.is_toxic;
+    } catch (e) {
+      console.warn("ML API unavailable for reply check.");
+    }
+
+    if (isToxic) {
+      return res.status(400).json({ message: "Your reply violates our community guidelines." });
+    }
+
+    comment.replies.push({ user: userId, text, isToxic });
+    await post.save();
+
+    const updated = await Post.findById(postId)
+      .populate("author", "name email")
+      .populate("comments.user", "name email _id")
+      .populate("comments.replies.user", "name email _id");
+
+    res.status(201).json(updated);
+  } catch (err) {
+    console.error("Add reply error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const deleteReply = async (req, res) => {
+  try {
+    const { id: postId, commentId, replyId } = req.params;
+    const userId = req.user._id;
+
+    const post = await Post.findById(postId);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
+    const comment = post.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    const reply = comment.replies.id(replyId);
+    if (!reply) return res.status(404).json({ message: "Reply not found" });
+    if (reply.user.toString() !== userId.toString())
+      return res.status(403).json({ message: "Not authorized" });
+
+    reply.deleteOne();
+    await post.save();
+
+    const updated = await Post.findById(postId)
+      .populate("author", "name email")
+      .populate("comments.user", "name email _id")
+      .populate("comments.replies.user", "name email _id");
+
+    res.json(updated);
+  } catch (err) {
+    console.error("Delete reply error:", err);
+    res.status(500).json({ message: err.message });
   }
 };

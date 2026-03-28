@@ -82,7 +82,7 @@ export const followUser = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .select("name email followers following")
+      .select("name email bio followers following createdAt")
       .populate("followers", "name email")
       .populate("following", "name email");
     
@@ -141,5 +141,31 @@ export const updateUserProfile = async (req, res) => {
   } catch (err) {
     console.error("Profile update error detail:", err);
     res.status(500).json({ message: "Failed to update profile: " + err.message });
+  }
+};
+
+export const pinPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user._id;
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Toggle: if already pinned the same post, unpin it
+    if (user.pinnedPostId?.toString() === postId) {
+      user.pinnedPostId = null;
+      await user.save();
+      return res.json({ message: "Post unpinned", pinnedPostId: null });
+    }
+
+    // Verify the post belongs to this user
+    const post = await Post.findOne({ _id: postId, author: userId });
+    if (!post) return res.status(403).json({ message: "You can only pin your own posts" });
+
+    user.pinnedPostId = postId;
+    await user.save();
+    res.json({ message: "Post pinned", pinnedPostId: postId });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to pin post" });
   }
 };

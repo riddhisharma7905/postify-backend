@@ -13,6 +13,9 @@ import {
   getExplorePosts,
   searchPosts,
   incrementViewCount,
+  getPostsLikedByUser,
+  addReply,
+  deleteReply,
 } from "../controllers/postController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
@@ -23,6 +26,7 @@ router.get("/", getPosts);
 router.get("/search", searchPosts);
 router.get("/explore", getExplorePosts);
 router.get("/user/me", authMiddleware, getMyPosts);
+router.get("/liked-by/:userId", getPostsLikedByUser);
 
 router.get("/author/:id", async (req, res) => {
   try {
@@ -63,5 +67,7 @@ router.delete("/:id", authMiddleware, deletePost);
 router.post("/:id/like", authMiddleware, likePost);
 router.post("/:id/comment", authMiddleware, addComment);
 router.delete("/:postId/comment/:commentId", authMiddleware, deleteComment);
+router.post("/:id/comment/:commentId/reply", authMiddleware, addReply);
+router.delete("/:id/comment/:commentId/reply/:replyId", authMiddleware, deleteReply);
 
 export default router;
