@@ -138,7 +138,7 @@ export const incrementViewCount = async (req, res) => {
 
 export const createPost = async (req, res) => {
   try {
-    const { title, content, tags, scheduledAt } = req.body;
+    const { title, content, tags, scheduledAt, category, image } = req.body;
     if (!title || !content)
       return res.status(400).json({ message: "Title and content are required" });
 
@@ -161,6 +161,8 @@ export const createPost = async (req, res) => {
       title,
       content,
       tags: Array.isArray(tags) ? tags : [],
+      category: category || "Others",
+      image: image || null,
       author: req.user._id,
       scheduledAt: scheduledDate,
     });
@@ -183,6 +185,9 @@ export const updatePost = async (req, res) => {
 
     post.title = req.body.title || post.title;
     post.content = req.body.content || post.content;
+    if (req.body.tags !== undefined) post.tags = Array.isArray(req.body.tags) ? req.body.tags : post.tags;
+    if (req.body.category) post.category = req.body.category;
+    if (req.body.image !== undefined) post.image = req.body.image;
 
     await post.save();
     res.json({ message: "Post updated successfully", post });
@@ -300,29 +305,31 @@ export const deleteComment = async (req, res) => {
 
 export const searchPosts = async (req, res) => {
   try {
-    const { query } = req.query;
-    if (!query) return res.json([]);
-    const normalized = query.replace(/\s+/g, "").toLowerCase();
-
+    const { query, category } = req.query;
+    if (!query && !category) return res.json([]);
+    
     const now = new Date();
-    const posts = await Post.find({
-      $and: [
-        {
-          $or: [
-            { title: { $regex: query, $options: "i" } },
-            { content: { $regex: query, $options: "i" } },
-            {
-              tags: {
-                $elemMatch: { $regex: new RegExp(normalized, "i") },
-              },
-            },
-          ],
-        },
-        {
-          $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }],
-        },
-      ],
-    })
+    const filters = [
+      { $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }] }
+    ];
+
+    if (query) {
+      const normalized = query.replace(/\s+/g, "").toLowerCase();
+      filters.push({
+        $or: [
+          { title: { $regex: query, $options: "i" } },
+          { content: { $regex: query, $options: "i" } },
+          { tags: { $elemMatch: { $regex: new RegExp(normalized, "i") } } },
+          { category: { $regex: query, $options: "i" } },
+        ],
+      });
+    }
+
+    if (category && category !== "All") {
+      filters.push({ category });
+    }
+
+    const posts = await Post.find({ $and: filters })
       .populate("author", "name email")
       .sort({ views: -1, createdAt: -1 });
 
@@ -337,12 +344,20 @@ export const searchPosts = async (req, res) => {
 export const getExplorePosts = async (req, res) => {
   try {
     const now = new Date();
-    const posts = await Post.find({
+    const { category } = req.query;
+
+    const filter = {
       $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }],
-    })
+    };
+
+    if (category && category !== "All") {
+      filter.category = category;
+    }
+
+    const posts = await Post.find(filter)
       .populate("author", "name email")
       .sort({ views: -1, createdAt: -1 })
-      .limit(6);
+      .limit(50);
 
     res.json(posts);
   } catch (err) {

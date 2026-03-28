@@ -18,6 +18,8 @@ import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+// Static routes MUST come before parameterized ones to avoid /:id matching them
+router.get("/", getPosts);
 router.get("/search", searchPosts);
 router.get("/explore", getExplorePosts);
 router.get("/user/me", authMiddleware, getMyPosts);
@@ -27,8 +29,6 @@ router.get("/author/:id", async (req, res) => {
     const { Post } = await import("../models/Post.js");
     const now = new Date();
     
-    // Always filter out scheduled posts for the public author profile view.
-    // Scheduled posts should only be visible to authors via their Dashboard / Scheduling section.
     const filter = { 
       author: req.params.id,
       $or: [
@@ -63,7 +63,5 @@ router.delete("/:id", authMiddleware, deletePost);
 router.post("/:id/like", authMiddleware, likePost);
 router.post("/:id/comment", authMiddleware, addComment);
 router.delete("/:postId/comment/:commentId", authMiddleware, deleteComment);
-
-router.get("/", getPosts);
 
 export default router;
