@@ -5,8 +5,6 @@ import cors from "cors";
 import userRoutes from "./routes/userRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import postRoutes from "./routes/postRoutes.js";
-import commentRoutes from "./routes/commentRoutes.js";
-import recommendRoutes from "./routes/recommendRoutes.js";
 
 dotenv.config();
 const app = express();
@@ -23,8 +21,6 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/posts", postRoutes);
-app.use("/api/posts", commentRoutes);
-app.use("/api/posts", recommendRoutes);
 
 // Catch-all for undefined routes - returns JSON instead of HTML
 app.use((req, res) => {

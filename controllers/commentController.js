@@ -5,7 +5,8 @@ export const addComment = async (req, res) => {
   try {
     const { content } = req.body;
 
-    const response = await axios.post("http://127.0.0.1:5002/predict", {
+    const mlUrl = process.env.ML_URL || "http://127.0.0.1:5002";
+    const response = await axios.post(`${mlUrl}/predict`, {
       content: content,
     });
 

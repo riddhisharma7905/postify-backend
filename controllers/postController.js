@@ -241,12 +241,11 @@ export const addComment = async (req, res) => {
     const userId = req.user._id;
     if (!text) return res.status(400).json({ message: "Comment text required" });
 
-    const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post not found" });
-
+    // 1. Toxicity check upfront (long-running)
     let isToxic = false;
     try {
-      const response = await fetch("https://postify-backend-1.onrender.com/predict", {
+      const mlUrl = process.env.ML_URL || "https://postify-backend-1.onrender.com";
+      const response = await fetch(`${mlUrl}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
@@ -263,12 +262,16 @@ export const addComment = async (req, res) => {
         .json({ message: "Your comment violates our community guidelines. Please keep it respectful." });
     }
 
-    post.comments.push({ user: userId, text, isToxic });
-    await post.save();
-
-    const updated = await Post.findById(post._id)
+    // 2. Atomic push (prevents VersionError)
+    const updated = await Post.findByIdAndUpdate(
+      req.params.id,
+      { $push: { comments: { user: userId, text, isToxic } } },
+      { new: true }
+    )
       .populate("author", "name email")
       .populate("comments.user", "name email");
+
+    if (!updated) return res.status(404).json({ message: "Post not found" });
 
     res.status(201).json(updated);
   } catch (err) {
@@ -416,16 +419,11 @@ export const addReply = async (req, res) => {
 
     if (!text?.trim()) return res.status(400).json({ message: "Reply text required" });
 
-    const post = await Post.findById(postId);
-    if (!post) return res.status(404).json({ message: "Post not found" });
-
-    const comment = post.comments.id(commentId);
-    if (!comment) return res.status(404).json({ message: "Comment not found" });
-
-    // Optional toxicity check (same as comment)
+    // 1. Toxicity check upfront
     let isToxic = false;
     try {
-      const response = await fetch("https://postify-backend-1.onrender.com/predict", {
+      const mlUrl = process.env.ML_URL || "https://postify-backend-1.onrender.com";
+      const response = await fetch(`${mlUrl}/predict`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: text }),
@@ -440,13 +438,17 @@ export const addReply = async (req, res) => {
       return res.status(400).json({ message: "Your reply violates our community guidelines." });
     }
 
-    comment.replies.push({ user: userId, text, isToxic });
-    await post.save();
-
-    const updated = await Post.findById(postId)
+    // 2. Atomic nested push into comments array mapping by commentId
+    const updated = await Post.findOneAndUpdate(
+      { _id: postId, "comments._id": commentId },
+      { $push: { "comments.$.replies": { user: userId, text, isToxic } } },
+      { new: true }
+    )
       .populate("author", "name email")
       .populate("comments.user", "name email _id")
       .populate("comments.replies.user", "name email _id");
+
+    if (!updated) return res.status(404).json({ message: "Post or Comment not found" });
 
     res.status(201).json(updated);
   } catch (err) {
