@@ -23,6 +23,8 @@ const userSchema = new mongoose.Schema(
     birthdate: { type: Date, default: null },
     sex: { type: String, default: "" },
     bio: { type: String, default: "", maxLength: 300 },
+    profileImage: { type: String, default: "" },
+    coverImage: { type: String, default: "" },
     phoneNumber: { type: String, default: "" },
     pinnedPostId: { type: mongoose.Schema.Types.ObjectId, ref: "Post", default: null },
   },

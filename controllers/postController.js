@@ -1,5 +1,7 @@
 import { Post } from "../models/Post.js";
 import fetch from "node-fetch";
+import { createNotification } from "./notificationController.js";
+import { User } from "../models/User.js";
 
 
 export const recommendPosts = async (req, res) => {
@@ -91,7 +93,14 @@ export const getPosts = async (req, res) => {
     })
       .populate("author", "name email")
       .sort({ createdAt: -1 });
-    res.json(posts);
+
+    const postsWithCount = posts.map(p => {
+      const obj = p.toObject();
+      obj.commentCount = (p.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+      return obj;
+    });
+
+    res.json(postsWithCount);
   } catch (err) {
     console.error("Error fetching posts:", err);
     res.status(500).json({ message: "Failed to fetch posts" });
@@ -116,7 +125,9 @@ export const getPost = async (req, res) => {
       }
     }
 
-    res.json(post);
+    const obj = post.toObject();
+    obj.commentCount = (post.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+    res.json(obj);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -169,6 +180,21 @@ export const createPost = async (req, res) => {
     });
 
     await post.save();
+
+    // Notify all followers about the new post
+    const author = await User.findById(req.user._id).select("followers");
+    if (author && author.followers.length > 0) {
+      const notifyPromises = author.followers.map((followerId) =>
+        createNotification({
+          recipientId: followerId,
+          senderId: req.user._id,
+          type: "new_post",
+          postId: post._id,
+        })
+      );
+      await Promise.allSettled(notifyPromises);
+    }
+
     res.status(201).json({ message: "Post created successfully", post });
   } catch (err) {
     console.error("Create post error:", err);
@@ -228,7 +254,21 @@ export const likePost = async (req, res) => {
       .populate("author", "name email")
       .populate("comments.user", "name email");
 
-    res.json(updated);
+    const updatedWithCount = updated.toObject();
+    updatedWithCount.commentCount = (updated.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+
+    // Fire like notification (only when liking, not unliking)
+    const wasLiked = index === -1;
+    if (wasLiked) {
+      await createNotification({
+        recipientId: updated.author._id,
+        senderId: userId,
+        type: "like",
+        postId: post._id,
+      });
+    }
+
+    res.json(updatedWithCount);
   } catch (err) {
     console.error("Like error:", err);
     res.status(500).json({ message: err.message });
@@ -273,7 +313,18 @@ export const addComment = async (req, res) => {
 
     if (!updated) return res.status(404).json({ message: "Post not found" });
 
-    res.status(201).json(updated);
+    const updatedWithCount = updated.toObject();
+    updatedWithCount.commentCount = (updated.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+
+    // Fire comment notification
+    await createNotification({
+      recipientId: updated.author._id,
+      senderId: userId,
+      type: "comment",
+      postId: updated._id,
+    });
+
+    res.status(201).json(updatedWithCount);
   } catch (err) {
     console.error("Add Comment Error:", err);
     res.status(500).json({ message: err.message });
@@ -300,7 +351,9 @@ export const deleteComment = async (req, res) => {
       .populate("author", "name")
       .populate("comments.user", "name");
 
-    res.json(updatedPost);
+    const postWithCount = updatedPost.toObject();
+    postWithCount.commentCount = (updatedPost.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+    res.json(postWithCount);
   } catch (err) {
     console.error("Delete comment error:", err);
     res.status(500).json({ message: err.message });
@@ -347,7 +400,13 @@ export const searchPosts = async (req, res) => {
       .populate("author", "name email")
       .sort({ views: -1, createdAt: -1 });
 
-    res.json(posts);
+    const postsWithCount = posts.map(p => {
+      const obj = p.toObject();
+      obj.commentCount = (p.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+      return obj;
+    });
+
+    res.json(postsWithCount);
   } catch (err) {
     console.error("Error searching posts:", err);
     res.status(500).json({ message: "Failed to search posts" });
@@ -373,7 +432,13 @@ export const getExplorePosts = async (req, res) => {
       .sort({ views: -1, createdAt: -1 })
       .limit(50);
 
-    res.json(posts);
+    const postsWithCount = posts.map(p => {
+      const obj = p.toObject();
+      obj.commentCount = (p.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+      return obj;
+    });
+
+    res.json(postsWithCount);
   } catch (err) {
     console.error("Error fetching explore posts:", err);
     res.status(500).json({ message: "Failed to fetch explore posts" });
@@ -385,7 +450,12 @@ export const getExplorePosts = async (req, res) => {
 export const getMyPosts = async (req, res) => {
   try {
     const posts = await Post.find({ author: req.user._id }).sort({ createdAt: -1 });
-    res.json(posts);
+    const postsWithCount = posts.map(p => {
+      const obj = p.toObject();
+      obj.commentCount = (p.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+      return obj;
+    });
+    res.json(postsWithCount);
   } catch (err) {
     res.status(500).json({ message: "Error fetching user's posts" });
   }
@@ -401,7 +471,14 @@ export const getPostsLikedByUser = async (req, res) => {
     })
       .populate("author", "name email")
       .sort({ createdAt: -1 });
-    res.json(posts);
+    
+    const postsWithCount = posts.map(p => {
+      const obj = p.toObject();
+      obj.commentCount = (p.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+      return obj;
+    });
+
+    res.json(postsWithCount);
   } catch (err) {
     res.status(500).json({ message: "Error fetching liked posts" });
   }
@@ -450,7 +527,38 @@ export const addReply = async (req, res) => {
 
     if (!updated) return res.status(404).json({ message: "Post or Comment not found" });
 
-    res.status(201).json(updated);
+    const updatedWithCount = updated.toObject();
+    updatedWithCount.commentCount = (updated.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+    res.status(201).json(updatedWithCount);
+
+    // ── FIRE NOTIFICATIONS ──────────────────────────────────────────────────
+    // 1. Notify the original commenter (recipient of the reply)
+    const originalComment = updated.comments.id(commentId);
+    if (originalComment && originalComment.user) {
+      const originalCommenterId = originalComment.user._id;
+      if (originalCommenterId.toString() !== userId.toString()) {
+        await createNotification({
+          recipientId: originalCommenterId,
+          senderId: userId,
+          type: "reply",
+          postId: updated._id,
+        });
+      }
+
+      // 2. Notify the post author (if different from replier and original commenter)
+      const postAuthorId = updated.author._id;
+      if (
+        postAuthorId.toString() !== userId.toString() &&
+        postAuthorId.toString() !== originalCommenterId.toString()
+      ) {
+        await createNotification({
+          recipientId: postAuthorId,
+          senderId: userId,
+          type: "comment", // generalized since it's someone else's conversation on their post
+          postId: updated._id,
+        });
+      }
+    }
   } catch (err) {
     console.error("Add reply error:", err);
     res.status(500).json({ message: err.message });
@@ -481,7 +589,9 @@ export const deleteReply = async (req, res) => {
       .populate("comments.user", "name email _id")
       .populate("comments.replies.user", "name email _id");
 
-    res.json(updated);
+    const updatedWithCount = updated.toObject();
+    updatedWithCount.commentCount = (updated.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+    res.json(updatedWithCount);
   } catch (err) {
     console.error("Delete reply error:", err);
     res.status(500).json({ message: err.message });

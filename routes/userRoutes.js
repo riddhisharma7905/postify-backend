@@ -5,12 +5,14 @@ import {
   followUser,
   checkFollowStatus,
   updateUserProfile,
-  pinPost
+  pinPost,
+  getSuggestedUsers
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+router.get("/suggested", getSuggestedUsers);
 router.get("/dashboard", authMiddleware, getUserDashboard);
 router.get("/:id", getUserById);
 router.post("/:id/follow", authMiddleware, followUser);
