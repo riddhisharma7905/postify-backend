@@ -125,7 +125,7 @@ export const checkFollowStatus = async (req, res) => {
 
 export const updateUserProfile = async (req, res) => {
   try {
-    const { name, email, birthdate, sex, bio, phoneNumber } = req.body;
+    const { name, email, birthdate, sex, bio, phoneNumber, profileImage, coverImage } = req.body;
     const currentUser = await User.findById(req.user._id);
     
     if (!currentUser) return res.status(404).json({ message: "User not found" });
@@ -224,5 +224,19 @@ export const getSuggestedUsers = async (req, res) => {
   } catch (err) {
     console.error("Suggestions error:", err);
     res.status(500).json({ message: "Failed to fetch suggestions" });
+  }
+};
+
+export const uploadImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      console.warn("Upload attempt without file");
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    console.log("File uploaded successfully to Cloudinary:", req.file.path);
+    res.json({ url: req.file.path });
+  } catch (err) {
+    console.error("Cloudinary Upload Error:", err);
+    res.status(500).json({ message: "Upload failed: " + err.message });
   }
 };

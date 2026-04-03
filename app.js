@@ -24,9 +24,15 @@ app.use("/api/user", userRoutes);
 app.use("/api/posts", postRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-// Catch-all for undefined routes - returns JSON instead of HTML
+// Catch-all for undefined routes
 app.use((req, res) => {
   res.status(404).json({ message: `Route ${req.originalUrl} not found` });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Express Error:", err);
+  res.status(500).json({ message: "Internal server error: " + err.message });
 });
 
 mongoose.connect(process.env.MONGODB_URI, {

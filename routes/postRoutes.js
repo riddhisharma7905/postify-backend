@@ -16,8 +16,10 @@ import {
   getPostsLikedByUser,
   addReply,
   deleteReply,
+  uploadPostImage
 } from "../controllers/postController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
+import { upload } from "../utils/cloudinaryConfig.js";
 
 const router = express.Router();
 
@@ -60,6 +62,9 @@ router.get("/author/:id", async (req, res) => {
 router.get("/:id/recommendations", recommendPosts);
 router.post("/:id/view", incrementViewCount);
 router.get("/:id", getPost);
+
+// Upload endpoint for post images
+router.post("/upload", authMiddleware, upload.single("image"), uploadPostImage);
 
 router.post("/", authMiddleware, createPost);
 router.put("/:id", authMiddleware, updatePost);

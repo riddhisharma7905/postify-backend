@@ -6,8 +6,6 @@ import { User } from "../models/User.js";
 
 export const recommendPosts = async (req, res) => {
   try {
-    const natural = (await import("natural")).default;
-
     if (!req.params.id || req.params.id === "undefined") {
       return res.status(400).json({ message: "Invalid post id" });
     }
@@ -16,66 +14,53 @@ export const recommendPosts = async (req, res) => {
     if (!current) return res.status(404).json({ message: "Post not found" });
 
     const now = new Date();
-    const all = await Post.find({ 
-      _id: { $ne: current._id },
-      $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }]
-    })
-      .populate("author", "name email")
-      .select("title content tags views author");
 
-    if (all.length === 0) return res.json([]);
+    const pipeline = [
+      {
+        $match: {
+          _id: { $ne: current._id },
+          $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }]
+        }
+      },
+      {
+        $addFields: {
+          tagOverlap: {
+            $size: {
+              $setIntersection: [
+                {
+                  $map: {
+                    input: { $ifNull: ["$tags", []] },
+                    as: "tag",
+                    in: { $toLower: "$$tag" }
+                  }
+                },
+                current.tags ? current.tags.map(t => t.toLowerCase()) : []
+              ]
+            }
+          },
+          categoryMatch: {
+            $cond: [{ $eq: ["$category", current.category] }, 1, 0]
+          }
+        }
+      },
+      {
+        $addFields: {
+          score: {
+            $add: [
+              { $multiply: ["$tagOverlap", 2] },
+              { $multiply: ["$categoryMatch", 3] }
+            ]
+          }
+        }
+      },
+      { $sort: { score: -1, views: -1, createdAt: -1 } },
+      { $limit: 4 }
+    ];
 
-    const TfIdf = natural.TfIdf;
-    const tfidf = new TfIdf();
+    const recommended = await Post.aggregate(pipeline);
 
-    all.forEach((p) => {
-      const text = `${p.title || ""} ${p.content || ""} ${(p.tags || []).join(" ")}`;
-      tfidf.addDocument(text);
-    });
-
-    const currentText = `${current.title || ""} ${current.content || ""} ${(current.tags || []).join(" ")}`;
-    const words = currentText.split(/\s+/).filter(w => w.length > 2); 
-
-    const scores = all.map((p, i) => {
-      let score = 0;
-   
-      words.forEach((w) => {
-        score += tfidf.tfidf(w, i);
-      });
-      if (current.tags && current.tags.length > 0) {
-        const overlap = (p.tags || []).filter((t) => 
-          current.tags.some(ct => ct.toLowerCase() === t.toLowerCase())
-        ).length;
-        score += overlap * 1.5; 
-      }
-
-      return { post: p, score };
-    });
-
-    scores.sort((a, b) => b.score - a.score);
-    const recommended = scores
-      .filter(s => s.score > 0.5)
-      .slice(0, 4)
-      .map(s => s.post);
-
-    if (recommended.length === 0 && current.tags && current.tags.length > 0) {
-      const categoryPosts = await Post.find({
-        _id: { $ne: current._id },
-        tags: { $in: current.tags },
-      })
-        .populate("author", "name email")
-        .sort({ views: -1 })
-        .limit(4);
-      
-      return res.json(categoryPosts);
-    }
-    if (recommended.length === 0) {
-      const trending = await Post.find({ _id: { $ne: current._id } })
-        .populate("author", "name email")
-        .sort({ views: -1, createdAt: -1 })
-        .limit(4);
-      return res.json(trending);
-    }
+    // Populate the author data after aggregation
+    await Post.populate(recommended, { path: "author", select: "name email" });
 
     res.json(recommended);
   } catch (err) {
@@ -595,5 +580,17 @@ export const deleteReply = async (req, res) => {
   } catch (err) {
     console.error("Delete reply error:", err);
     res.status(500).json({ message: err.message });
+  }
+};
+
+export const uploadPostImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+    // Cloudinary URL is stored in req.file.path
+    res.json({ url: req.file.path });
+  } catch (err) {
+    res.status(500).json({ message: "Upload failed: " + err.message });
   }
 };
