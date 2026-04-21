@@ -10,7 +10,7 @@ export const recommendPosts = async (req, res) => {
       return res.status(400).json({ message: "Invalid post id" });
     }
 
-    const current = await Post.findById(req.params.id).populate("author", "name email");
+    const current = await Post.findById(req.params.id).populate("author", "name email profileImage");
     if (!current) return res.status(404).json({ message: "Post not found" });
 
     const now = new Date();
@@ -60,7 +60,7 @@ export const recommendPosts = async (req, res) => {
     const recommended = await Post.aggregate(pipeline);
 
     // Populate the author data after aggregation
-    await Post.populate(recommended, { path: "author", select: "name email" });
+    await Post.populate(recommended, { path: "author", select: "name email profileImage" });
 
     res.json(recommended);
   } catch (err) {
@@ -76,7 +76,7 @@ export const getPosts = async (req, res) => {
     const posts = await Post.find({
       $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }],
     })
-      .populate("author", "name email")
+      .populate("author", "name email profileImage")
       .sort({ createdAt: -1 });
 
     const postsWithCount = posts.map(p => {
@@ -95,9 +95,9 @@ export const getPosts = async (req, res) => {
 export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
-      .populate("author", "name email")
-      .populate("comments.user", "name email _id")
-      .populate("comments.replies.user", "name email _id");
+      .populate("author", "name email profileImage")
+      .populate("comments.user", "name email _id profileImage")
+      .populate("comments.replies.user", "name email _id profileImage");
 
     if (!post) return res.status(404).json({ message: "Post not found" });
 
@@ -236,8 +236,8 @@ export const likePost = async (req, res) => {
 
     await post.save();
     const updated = await Post.findById(post._id)
-      .populate("author", "name email")
-      .populate("comments.user", "name email");
+      .populate("author", "name email profileImage")
+      .populate("comments.user", "name email profileImage");
 
     const updatedWithCount = updated.toObject();
     updatedWithCount.commentCount = (updated.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
@@ -293,8 +293,8 @@ export const addComment = async (req, res) => {
       { $push: { comments: { user: userId, text, isToxic } } },
       { new: true }
     )
-      .populate("author", "name email")
-      .populate("comments.user", "name email");
+      .populate("author", "name email profileImage")
+      .populate("comments.user", "name email profileImage");
 
     if (!updated) return res.status(404).json({ message: "Post not found" });
 
@@ -333,8 +333,8 @@ export const deleteComment = async (req, res) => {
     await post.save();
 
     const updatedPost = await Post.findById(postId)
-      .populate("author", "name")
-      .populate("comments.user", "name");
+      .populate("author", "name profileImage")
+      .populate("comments.user", "name profileImage");
 
     const postWithCount = updatedPost.toObject();
     postWithCount.commentCount = (updatedPost.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
@@ -382,7 +382,7 @@ export const searchPosts = async (req, res) => {
     }
 
     const posts = await Post.find({ $and: filters })
-      .populate("author", "name email")
+      .populate("author", "name email profileImage")
       .sort({ views: -1, createdAt: -1 });
 
     const postsWithCount = posts.map(p => {
@@ -413,7 +413,7 @@ export const getExplorePosts = async (req, res) => {
     }
 
     const posts = await Post.find(filter)
-      .populate("author", "name email")
+      .populate("author", "name email profileImage")
       .sort({ views: -1, createdAt: -1 })
       .limit(50);
 
@@ -454,7 +454,7 @@ export const getPostsLikedByUser = async (req, res) => {
       likes: userId,
       $or: [{ scheduledAt: { $exists: false } }, { scheduledAt: null }, { scheduledAt: { $lte: now } }]
     })
-      .populate("author", "name email")
+      .populate("author", "name email profileImage")
       .sort({ createdAt: -1 });
     
     const postsWithCount = posts.map(p => {
@@ -506,9 +506,9 @@ export const addReply = async (req, res) => {
       { $push: { "comments.$.replies": { user: userId, text, isToxic } } },
       { new: true }
     )
-      .populate("author", "name email")
-      .populate("comments.user", "name email _id")
-      .populate("comments.replies.user", "name email _id");
+      .populate("author", "name email profileImage")
+      .populate("comments.user", "name email _id profileImage")
+      .populate("comments.replies.user", "name email _id profileImage");
 
     if (!updated) return res.status(404).json({ message: "Post or Comment not found" });
 
@@ -570,9 +570,9 @@ export const deleteReply = async (req, res) => {
     await post.save();
 
     const updated = await Post.findById(postId)
-      .populate("author", "name email")
-      .populate("comments.user", "name email _id")
-      .populate("comments.replies.user", "name email _id");
+      .populate("author", "name email profileImage")
+      .populate("comments.user", "name email _id profileImage")
+      .populate("comments.replies.user", "name email _id profileImage");
 
     const updatedWithCount = updated.toObject();
     updatedWithCount.commentCount = (updated.comments || []).reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);

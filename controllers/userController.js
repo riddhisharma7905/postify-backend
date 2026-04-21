@@ -6,8 +6,8 @@ export const getUserDashboard = async (req, res) => {
   try {
     const user = await User.findById(req.user._id)
       .select("-password")
-      .populate("followers", "name email")
-      .populate("following", "name email");
+      .populate("followers", "name email profileImage")
+      .populate("following", "name email profileImage");
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -67,8 +67,8 @@ export const followUser = async (req, res) => {
     await targetUser.save({ validateBeforeSave: true });
     const updatedTargetUser = await User.findById(targetUserId)
       .select("-password")
-      .populate("followers", "name email")
-      .populate("following", "name email");
+      .populate("followers", "name email profileImage")
+      .populate("following", "name email profileImage");
 
     res.status(200).json({
       message: isFollowing ? "Unfollowed" : "Followed",
@@ -151,7 +151,7 @@ export const updateUserProfile = async (req, res) => {
     
     const updatedUser = await User.findById(currentUser._id)
       .select("-password")
-      .populate("followers following", "name email");
+      .populate("followers following", "name email profileImage");
       
     res.json(updatedUser);
   } catch (err) {
