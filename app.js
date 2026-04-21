@@ -35,12 +35,23 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Internal server error: " + err.message });
 });
 
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log("MongoDB connected"))
-.catch(err => console.error("MongoDB connection error:", err));
+// Database connection and Server start
+const connectDB = async () => {
+  try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error("MONGODB_URI environment variable is missing!");
+    }
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log("✅ MongoDB connected successfully");
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  } catch (err) {
+    console.error("❌ MongoDB connection error:", err.message);
+    // Exit process with failure
+    process.exit(1);
+  }
+};
+
+connectDB();
