@@ -38,11 +38,13 @@ app.use((err, req, res, next) => {
 // Database connection and Server start
 const connectDB = async () => {
   try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error("MONGODB_URI environment variable is missing!");
+    const dbUri = process.env.MONGODB_URI || process.env.MONGO_URI;
+    
+    if (!dbUri) {
+      throw new Error("MongoDB connection string is missing! (Check MONGODB_URI or MONGO_URI in Render settings)");
     }
 
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(dbUri);
     console.log("✅ MongoDB connected successfully");
 
     const PORT = process.env.PORT || 5000;
