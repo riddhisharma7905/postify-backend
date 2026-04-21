@@ -7,7 +7,8 @@ import {
   updateUserProfile, 
   pinPost, 
   getSuggestedUsers, 
-  uploadImage 
+  uploadImage,
+  deleteUserImage 
 } from "../controllers/userController.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
 import { upload } from "../utils/cloudinaryConfig.js";
@@ -24,5 +25,6 @@ router.post("/pin/:postId", authMiddleware, pinPost);
 
 // Upload endpoint
 router.post("/upload", authMiddleware, upload.single("image"), uploadImage);
+router.delete("/image", authMiddleware, deleteUserImage);
 
 export default router;

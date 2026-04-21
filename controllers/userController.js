@@ -240,3 +240,33 @@ export const uploadImage = async (req, res) => {
     res.status(500).json({ message: "Upload failed: " + err.message });
   }
 };
+
+export const deleteUserImage = async (req, res) => {
+  try {
+    const { type } = req.body; // 'profile' or 'cover'
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const imageUrl = type === "profile" ? user.profileImage : user.coverImage;
+    if (!imageUrl) return res.status(400).json({ message: "No image to delete" });
+
+    // Extract public_id from Cloudinary URL
+    // Format: .../upload/v12345678/folder/public_id.extension
+    const parts = imageUrl.split("/");
+    const fileNameWithExt = parts[parts.length - 1];
+    const folder = parts[parts.length - 2];
+    const publicId = `${folder}/${fileNameWithExt.split(".")[0]}`;
+
+    const { cloudinary } = await import("../utils/cloudinaryConfig.js");
+    await cloudinary.uploader.destroy(publicId);
+
+    if (type === "profile") user.profileImage = "";
+    else user.coverImage = "";
+
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    console.error("Delete image error:", err);
+    res.status(500).json({ message: err.message });
+  }
+};
