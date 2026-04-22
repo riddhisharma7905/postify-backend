@@ -174,3 +174,26 @@ export const createNotification = async ({
     console.warn("createNotification error:", err.message);
   }
 };
+
+export const deleteNotification = async ({ recipientId, senderId, type, postId }) => {
+  try {
+    const query = { type };
+    if (recipientId) query.recipient = recipientId;
+    if (senderId) query.sender = senderId;
+    if (postId) query.post = postId;
+    
+    // We might delete multiple if a user commented multiple times and deletes one, 
+    // but without storing commentId in Notification, this is the safest cleanup.
+    await Notification.deleteMany(query);
+  } catch (err) {
+    console.warn("deleteNotification error:", err.message);
+  }
+};
+
+export const deletePostNotifications = async (postId) => {
+  try {
+    await Notification.deleteMany({ post: postId });
+  } catch (err) {
+    console.warn("deletePostNotifications error:", err.message);
+  }
+};

@@ -1,6 +1,6 @@
 import { Post } from "../models/Post.js";
 import fetch from "node-fetch";
-import { createNotification } from "./notificationController.js";
+import { createNotification, deleteNotification, deletePostNotifications } from "./notificationController.js";
 import { User } from "../models/User.js";
 
 
@@ -216,6 +216,7 @@ export const deletePost = async (req, res) => {
       return res.status(403).json({ message: "Unauthorized" });
 
     await post.deleteOne();
+    await deletePostNotifications(post._id);
     res.json({ message: "Post deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -246,6 +247,13 @@ export const likePost = async (req, res) => {
     const wasLiked = index === -1;
     if (wasLiked) {
       await createNotification({
+        recipientId: updated.author._id,
+        senderId: userId,
+        type: "like",
+        postId: post._id,
+      });
+    } else {
+      await deleteNotification({
         recipientId: updated.author._id,
         senderId: userId,
         type: "like",
@@ -331,6 +339,12 @@ export const deleteComment = async (req, res) => {
 
     comment.deleteOne();
     await post.save();
+
+    await deleteNotification({
+      senderId: userId,
+      type: "comment",
+      postId: post._id,
+    });
 
     const updatedPost = await Post.findById(postId)
       .populate("author", "name profileImage")
@@ -568,6 +582,12 @@ export const deleteReply = async (req, res) => {
 
     reply.deleteOne();
     await post.save();
+
+    await deleteNotification({
+      senderId: userId,
+      type: "reply",
+      postId: post._id,
+    });
 
     const updated = await Post.findById(postId)
       .populate("author", "name email profileImage")

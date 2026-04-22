@@ -1,6 +1,6 @@
 import { User } from "../models/User.js";
 import { Post } from "../models/Post.js";
-import { createNotification } from "./notificationController.js";
+import { createNotification, deleteNotification } from "./notificationController.js";
 
 export const getUserDashboard = async (req, res) => {
   try {
@@ -81,6 +81,13 @@ export const followUser = async (req, res) => {
     // Fire follow notification (only when following, not unfollowing)
     if (!isFollowing) {
       await createNotification({
+        recipientId: targetUserId,
+        senderId: currentUserId,
+        type: "follow",
+        postId: null,
+      });
+    } else {
+      await deleteNotification({
         recipientId: targetUserId,
         senderId: currentUserId,
         type: "follow",
